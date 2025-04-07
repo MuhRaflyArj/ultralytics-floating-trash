@@ -1,0 +1,39 @@
+Baseline Pretrained COCO (YOLOv12.pt)
+P          R          mAP50      mAP50-95
+0.826      0.783      0.827      0.409
+
+Baseline (YOLOv12.yaml)
+P          R          mAP50      mAP50-95
+0.776      0.661      0.713      0.316
+
+Baseline (YOLOv11.yaml)
+0.786      0.682       0.74      0.335
+
+YOLO-CBAM-A
+P          R          mAP50      mAP50-95
+0.8      0.644      0.715      0.321
+
+YOLO-CBAM-B
+P          R          mAP50      mAP50-95
+0.752      0.644      0.689        0.3
+
+YOLO-CBAM-ALL
+P          R          mAP50      mAP50-95
+0.805      0.645      0.709      0.313
+
+YOLO-CBAM-SHORT
+P          R          mAP50      mAP50-95
+0.794       0.66      0.712      0.313
+
+YOLO-SHORT
+P          R          mAP50      mAP50-95
+0.807      0.685      0.742      0.329
+
+YOLO-HALF
+P           R          mAP50     mAP50-95
+0.808       0.67       0.73      0.321
+
+YOLO-NANO
+P         R          mAP50      mAP50-95
+0.76      0.626      0.678      0.283
+
