@@ -1224,15 +1224,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         elif m is CBAM:
             c1 = ch[f]
             c2 = c1 # CBAM does not change channel dimension
-            # CBAM expects input channels (c1) and potentially kernel_size in args
-            # Example YAML: [-1, 1, CBAM, [7]] # kernel_size=7
             args = [c1, *args] # Prepend c1 to the args from YAML
         elif m is SimAM:
             c1 = ch[f]
             c2 = c1 # SimAM does not change channel dimension
-            # SimAM expects optional lambda_ in args
-            # Example YAML: [-1, 1, SimAM, [1e-4]] or [-1, 1, SimAM, []]
-            # No need to add c1/c2 to args, just pass YAML args directly
             pass # args are already correctly populated from YAML
         else:
             c2 = ch[f]
