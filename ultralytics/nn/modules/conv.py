@@ -715,107 +715,73 @@ class Index(nn.Module):
 
 class SimAM(nn.Module):
     """
-    Simple, Parameter-Free Attention Module (SimAM).
-
-    Computes attention weights based on an energy function defined for each neuron,
-    without introducing additional learnable parameters. Lower energy signifies
-    higher neuron importance.
-
-    Attributes:
-        lambda_ (float): Regularization parameter in the energy function.
-        activation (nn.Sigmoid): Sigmoid activation applied to the refined features.
-
-    References:
-        Paper: SimAM: A Simple, Parameter-Free Attention Module for Convolutional Neural Networks
-        (https://proceedings.mlr.press/v139/yang21o/yang21o.pdf)
-        Inspired by official/popular implementations.
+    SimAM: A Simple, Parameter-Free Attention Module for Convolutional Neural Networks.
+    https://arxiv.org/pdf/2101.08165.pdf
     """
-
-    def __init__(self, lambda_=1e-4):
+    def __init__(self, c1, c2, e_lambda=1e-4):
         """
         Initialize SimAM module.
 
         Args:
-            lambda_ (float): Regularization hyperparameter for the energy function.
-                             Defaults to 1e-4 based on the paper.
+            c1 (int): Input channels.
+            c2 (int): Output channels. Must be equal to c1 for SimAM.
+            e_lambda (float): Regularization parameter lambda.
         """
         super().__init__()
-        self.lambda_ = lambda_
-        self.activation = nn.Sigmoid()
+        # SimAM does not change the number of channels. Assert this condition.
+        assert c1 == c2, f"Input channels ({c1}) and output channels ({c2}) must be equal for SimAM."
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.e_lambda = e_lambda
+        self.activation = nn.Sigmoid() # Internal activation for the attention map
+
+        # SimAM is parameter-free, so no learnable weights like Conv or BN are defined here.
+        # We keep c1 and c2 in the signature for consistency with how parse_model might call it,
+        # but c2 isn't strictly used beyond the assertion.
+
+    def forward(self, x):
         """
         Apply SimAM attention to the input tensor.
 
         Args:
-            x (torch.Tensor): Input feature map tensor (B, C, H, W).
+            x (torch.Tensor): Input tensor of shape (B, C, H, W).
 
         Returns:
-            (torch.Tensor): Output tensor with applied attention (B, C, H, W).
+            (torch.Tensor): Output tensor with attention applied (same shape as input).
         """
-        # Get spatial dimensions (height H, width W)
-        n = x.shape[2] * x.shape[3] - 1 # Number of elements excluding the target
+        # Spatial dimensions
+        _, _, h, w = x.size()
+        # Number of elements in spatial dimensions
+        n = w * h - 1
 
-        # Calculate mean and variance over spatial dimensions (per channel)
-        # Keep dimensions for broadcasting
-        mu = torch.mean(x, dim=[2, 3], keepdim=True)
+        # Calculate mean and variance
+        # mean_x = x.mean(dim=[2, 3], keepdim=True) # E[x]
+        # var_x = ((x - mean_x) ** 2).mean(dim=[2, 3], keepdim=True) # Var[x]
 
-        # Use unbiased=False for variance calculation consistent with common implementations
-        # E[X^2] - (E[X])^2
-        var = torch.var(x, dim=[2, 3], keepdim=True, unbiased=False)
+        # More efficient calculation: E[(X - mu)^2] = E[X^2] - (E[X])^2 is less stable
+        # Using the direct formula from the paper for stability:
+        # D = (1/n) * sum_i^n (x_i - mu)^2
+        # mu = (1/N) * sum_i^N x_i
+        x_minus_mu_square = (x - x.mean(dim=[2, 3], keepdim=True)).pow(2)
+        # Denominator: 4 * (sigma_hat^2 + lambda) where sigma_hat^2 = (1/n) * sum((x - mu)^2)
+        y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n + self.e_lambda)) + 0.5
 
-        # Calculate the squared difference from the mean
-        d = (x - mu).pow(2)
+        # Apply attention: x * sigmoid(E)
+        return x * self.activation(y)
 
-        # Calculate the energy function (simplified form from paper/implementations)
-        # Add lambda_ for numerical stability and regularization
-        # The denominator corresponds to 4 * (sigma_hat^2 + lambda)
-        # The numerator corresponds to (t - mu_hat)^2
-        # Adding 0.5 corresponds to the 1/2 * sigma_hat^2 term being ignored or simplified
-        # energy = d / (4 * (var + self.lambda_)) + 0.5 # This form is common but slightly deviates
-        
-        # More direct implementation based on the idea 1 / (e_t^*)
-        # e_t^* = (t - \mu)^2 / (4 * (\sigma^2 + \lambda)) + (\sigma^2 + \lambda) / 2
-        # 1 / e_t^* simplified leads to focusing on the variance relative to distance
-        # Let's use the common implementation structure which is often:
-        energy = d / (4 * (var + self.lambda_)) + 0.5 # Note: This simplification is widely used
+    def forward_fuse(self, x):
+        """
+        Forward pass for fused model. SimAM has no fuseable components (like BN),
+        so this is identical to the standard forward pass.
 
-        # Calculate attention weights: sigmoid(1 / energy) is tricky.
-        # Common practice is sigmoid(-energy) or element-wise product with sigmoid(weights)
-        # The paper suggests refinement: x_hat = x * sigmoid(1 / e_t)
-        # Let's implement the most common variant found in codebases:
-        # weights = self.activation(1 / energy) # Theoretical sigmoid(1/e_t) can be unstable if energy is near 0
-        
-        # A stable and common implementation is:
-        # Attention = Sigmoid( E_inv ) where E_inv = variance / ( (x-mu)^2 + variance + lambda )
-        # Let's stick to the widely adopted implementation for simplicity,
-        # which often calculates an energy term and applies sigmoid directly to it or its negative.
-        # The variant x * sigmoid(energy) where lower energy means higher attention implicitly
-        # seems counter-intuitive. Let's use the refinement `x * sigmoid(1 / e_t)` cautiously.
-        
-        # Rechecking common implementations (e.g., related to YOLOv7/YOLOv8 integrations):
-        # They often compute: return x * torch.sigmoid( energy )
-        # Where energy = (x-mu)^2 / (4*(var+lambda)) + 0.5 is *not* the energy e_t.
-        # Let's implement the formula more closely related to the paper's concept:
-        # importance = 1 / e_t
-        
-        # Calculate energy e_t = (d / (4 * (var + self.lambda_))) + 0.5 * var # Closer to paper's simplified energy
-        # This doesn't seem right either. Let's use the most frequently cited implementation structure:
-        
-        denominator = 4 * (var + self.lambda_)
-        numerator = (x - mu).pow(2)
-        e_t_simplified_term1 = numerator / denominator
-        
-        # The paper implies weights proportional to 1/energy.
-        # Lower energy (closer to mean, small variance context) is better.
-        # Let's use the form directly inspired by figure 2 and Eq 6/7: weight = sigmoid(1/e_t)
-        # Where e_t = (t-mu_hat)^2 / (4*(sigma_hat^2 + lambda)) + sigma_hat^2 / 2
-        # Using approximations mu_hat ≈ mu and sigma_hat^2 ≈ var:
-        e_t = (numerator / (4 * (var + self.lambda_))) + (0.5 * var) # Approximated energy
-        
-        # Add small epsilon to prevent division by zero if e_t is exactly 0
-        # (unlikely with lambda > 0 and var >= 0)
-        weights = self.activation(1 / (e_t + 1e-9)) # sigmoid(1 / energy)
+        Args:
+            x (torch.Tensor): Input tensor.
 
-        # Apply attention weights to the input features
-        return x * weights
+        Returns:
+            (torch.Tensor): Output tensor.
+        """
+        return self.forward(x)
+
+    def __repr__(self):
+        """String representation of the module."""
+        return f"{self.__class__.__name__}(lambda={self.e_lambda})"
+
