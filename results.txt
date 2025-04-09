@@ -48,5 +48,8 @@ YOLOv12
 YOLOv12 Pretrained
 0.831      0.784      0.838       0.42
 
+YOLOv12m wt-flow-uav 300
+0.848      0.788      0.841      0.421
+
 YOLOv12 SimAM
 0.824      0.739      0.789      0.373
