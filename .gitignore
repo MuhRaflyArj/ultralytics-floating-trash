@@ -177,3 +177,8 @@ calibration_*.npy
 # Zip files
 *.zip
 *.tar.gz
+ 
+# Temporary files
+*.tmp
+*.temp
+temp.*
