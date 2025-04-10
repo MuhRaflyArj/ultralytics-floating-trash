@@ -712,3 +712,87 @@ class Index(nn.Module):
             (torch.Tensor): Selected tensor.
         """
         return x[self.index]
+
+# --- Implementation of LCBHAM ---
+
+class LCAM(nn.Module):
+    """
+    Lightweight Channel Attention Module (LCAM) based on the diagram.
+    Uses a shared MLP for both maxpool and avgpool features.
+    """
+    def __init__(self, c1, r=16): # c1 = input channels, r = reduction ratio
+        super().__init__()
+        c_ = c1 // r # Intermediate channels
+        if c_ == 0: c_ = 1 # Ensure intermediate channels is at least 1
+        self.maxpool = nn.AdaptiveMaxPool2d(1)
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
+        # Shared MLP
+        self.mlp = nn.Sequential(
+            nn.Conv2d(c1, c_, kernel_size=1, stride=1, padding=0, bias=False), # Use Conv2d for MLP on features
+            nn.ReLU(inplace=True),
+            nn.Conv2d(c_, c1, kernel_size=1, stride=1, padding=0, bias=False)
+        )
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x_max = self.maxpool(x)
+        x_avg = self.avgpool(x)
+        x_max = self.mlp(x_max)
+        x_avg = self.mlp(x_avg)
+        channel_att = self.sigmoid(x_max + x_avg)
+        return channel_att # Output shape: (B, C, 1, 1)
+
+class LD_SAM(nn.Module):
+    """
+    Lightweight Dilated Spatial Attention Module (LD-SAM) based on the diagram.
+    Note: Diagram shows k=3, not explicitly dilated, but name suggests it.
+           Using standard k=3 conv as per visual representation.
+    """
+    def __init__(self, kernel_size=3): # Kernel size for the spatial conv
+        super().__init__()
+        assert kernel_size % 2 == 1, "Kernel size must be odd for 'same' padding"
+        # Input to conv will have 2 channels (max_pool + avg_pool)
+        self.conv = nn.Conv2d(2, 1, kernel_size=kernel_size, stride=1, padding=autopad(kernel_size), bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        # Apply max and average pooling along the channel dimension
+        x_max, _ = torch.max(x, dim=1, keepdim=True) # Shape: (B, 1, H, W)
+        x_avg = torch.mean(x, dim=1, keepdim=True)   # Shape: (B, 1, H, W)
+        # Concatenate along the channel dimension
+        x_cat = torch.cat([x_max, x_avg], dim=1)     # Shape: (B, 2, H, W)
+        # Apply convolution and sigmoid
+        spatial_att = self.sigmoid(self.conv(x_cat)) # Shape: (B, 1, H, W)
+        return spatial_att
+
+class LCBHAM(nn.Module):
+    """
+    Lightweight Coordinate Attention Block with Hardswish Activation Module (LCBHAM).
+    Combines an initial convolution block with LCAM and LD-SAM.
+    """
+    def __init__(self, c1, c2, k=3, s=2): # c1=input channels, c2=output channels for initial conv
+        super().__init__()
+        # Initial Convolution Block
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(c1, c2, kernel_size=k, stride=s, padding=autopad(k, p=None, d=1), bias=False),
+            nn.BatchNorm2d(c2),
+            nn.Hardswish(inplace=True)
+        )
+        # Attention Modules
+        self.channel_att = LCAM(c2) # Takes output channels of conv_block
+        self.spatial_att = LD_SAM(kernel_size=3) # Using k=3 as shown in diagram
+
+    def forward(self, x):
+        # Apply initial convolution block
+        x_conv = self.conv_block(x)
+
+        # Apply Channel Attention (LCAM)
+        channel_weights = self.channel_att(x_conv)
+        x_channel_refined = x_conv * channel_weights # Element-wise multiplication
+
+        # Apply Spatial Attention (LD-SAM)
+        spatial_weights = self.spatial_att(x_channel_refined)
+        x_spatial_refined = x_channel_refined * spatial_weights # Element-wise multiplication
+
+        # Output feature
+        return x_spatial_refined

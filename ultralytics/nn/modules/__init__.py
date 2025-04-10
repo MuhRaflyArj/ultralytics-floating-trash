@@ -74,6 +74,7 @@ from .conv import (
     LightConv,
     RepConv,
     SpatialAttention,
+    LCBHAM
 )
 from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, WorldDetect, v10Detect
 from .transformer import (
