@@ -10,6 +10,8 @@ from pathlib import Path
 import torch
 
 from ultralytics.nn.modules import (
+    SimAM,
+    CBAM,
     AIFI,
     C1,
     C2,
@@ -63,7 +65,6 @@ from ultralytics.nn.modules import (
     TorchVision,
     WorldDetect,
     v10Detect,
-    CBAM
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1151,6 +1152,8 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C2fCIB,
             C2PSA,
             A2C2f,
+            SimAM,
+            CBAM,
         }
     )
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
@@ -1218,11 +1221,14 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c2 = args[0]
             c1 = ch[f]
             args = [*args[1:]]
-        elif m in {CBAM}:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [c1, *args[1:]]
+        elif m is CBAM:
+            c1 = ch[f]
+            c2 = c1 # CBAM does not change channel dimension
+            args = [c1, *args] # Prepend c1 to the args from YAML
+        elif m is SimAM:
+            c1 = ch[f]
+            c2 = c1 # SimAM does not change channel dimension
+            pass # args are already correctly populated from YAML
         else:
             c2 = ch[f]
 

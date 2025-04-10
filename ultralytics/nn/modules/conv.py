@@ -712,3 +712,76 @@ class Index(nn.Module):
             (torch.Tensor): Selected tensor.
         """
         return x[self.index]
+
+class SimAM(nn.Module):
+    """
+    SimAM: A Simple, Parameter-Free Attention Module for Convolutional Neural Networks.
+    https://arxiv.org/pdf/2101.08165.pdf
+    """
+    def __init__(self, c1, c2, e_lambda=1e-4):
+        """
+        Initialize SimAM module.
+
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels. Must be equal to c1 for SimAM.
+            e_lambda (float): Regularization parameter lambda.
+        """
+        super().__init__()
+        # SimAM does not change the number of channels. Assert this condition.
+        assert c1 == c2, f"Input channels ({c1}) and output channels ({c2}) must be equal for SimAM."
+
+        self.e_lambda = e_lambda
+        self.activation = nn.Sigmoid() # Internal activation for the attention map
+
+        # SimAM is parameter-free, so no learnable weights like Conv or BN are defined here.
+        # We keep c1 and c2 in the signature for consistency with how parse_model might call it,
+        # but c2 isn't strictly used beyond the assertion.
+
+    def forward(self, x):
+        """
+        Apply SimAM attention to the input tensor.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (B, C, H, W).
+
+        Returns:
+            (torch.Tensor): Output tensor with attention applied (same shape as input).
+        """
+        # Spatial dimensions
+        _, _, h, w = x.size()
+        # Number of elements in spatial dimensions
+        n = w * h - 1
+
+        # Calculate mean and variance
+        # mean_x = x.mean(dim=[2, 3], keepdim=True) # E[x]
+        # var_x = ((x - mean_x) ** 2).mean(dim=[2, 3], keepdim=True) # Var[x]
+
+        # More efficient calculation: E[(X - mu)^2] = E[X^2] - (E[X])^2 is less stable
+        # Using the direct formula from the paper for stability:
+        # D = (1/n) * sum_i^n (x_i - mu)^2
+        # mu = (1/N) * sum_i^N x_i
+        x_minus_mu_square = (x - x.mean(dim=[2, 3], keepdim=True)).pow(2)
+        # Denominator: 4 * (sigma_hat^2 + lambda) where sigma_hat^2 = (1/n) * sum((x - mu)^2)
+        y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n + self.e_lambda)) + 0.5
+
+        # Apply attention: x * sigmoid(E)
+        return x * self.activation(y)
+
+    def forward_fuse(self, x):
+        """
+        Forward pass for fused model. SimAM has no fuseable components (like BN),
+        so this is identical to the standard forward pass.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            (torch.Tensor): Output tensor.
+        """
+        return self.forward(x)
+
+    def __repr__(self):
+        """String representation of the module."""
+        return f"{self.__class__.__name__}(lambda={self.e_lambda})"
+

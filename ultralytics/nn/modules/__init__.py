@@ -60,6 +60,7 @@ from .block import (
     TorchVision,
 )
 from .conv import (
+    SimAM,
     CBAM,
     ChannelAttention,
     Concat,

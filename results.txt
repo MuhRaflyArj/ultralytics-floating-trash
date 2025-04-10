@@ -4,7 +4,7 @@ P          R          mAP50      mAP50-95
 
 Baseline (YOLOv12.yaml)
 P          R          mAP50      mAP50-95
-0.776      0.661      0.713      0.316
+0.786       0.69      0.739      0.335
 
 Baseline (YOLOv11.yaml)
 0.786      0.682       0.74      0.335
@@ -37,3 +37,19 @@ YOLO-NANO
 P         R          mAP50      mAP50-95
 0.76      0.626      0.678      0.283
 
+
+300 Epochs
+YOLOv12-CBAM-A
+0.834      0.737      0.786      0.375
+
+YOLOv12
+0.824      0.734      0.794      0.379
+
+YOLOv12 Pretrained
+0.831      0.784      0.838       0.42
+
+YOLOv12m wt-flow-uav 300
+0.848      0.788      0.841      0.421
+
+YOLOv12 SimAM
+0.824      0.739      0.789      0.373
