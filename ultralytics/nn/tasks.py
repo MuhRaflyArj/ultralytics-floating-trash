@@ -65,6 +65,8 @@ from ultralytics.nn.modules import (
     TorchVision,
     WorldDetect,
     v10Detect,
+    CBAM,
+    LCBHAM
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1133,6 +1135,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             SCDown,
             C2fCIB,
             A2C2f,
+            LCBHAM
         }
     )
     repeat_modules = frozenset(  # modules with 'repeat' arguments
@@ -1173,22 +1176,35 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
-            if m is C2fAttn:  # set 1) embed channels and 2) num heads
-                args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)
-                args[2] = int(max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2])
 
-            args = [c1, c2, *args[1:]]
-            if m in repeat_modules:
-                args.insert(2, n)  # number of repeats
-                n = 1
-            if m is C3k2:  # for M/L/X sizes
-                legacy = False
-                if scale in "mlx":
-                    args[3] = True
-            if m is A2C2f:
-                legacy = False
-                if scale in "lx":  # for L/X sizes
-                    args.extend((True, 1.2))
+            # Specific handling for LCBHAM
+            if m is LCBHAM:
+                 # LCBHAM(c1, c2, k=3, s=2)
+                 # YAML args: [c2_out_conv, k(optional), s(optional)]
+                 # c1 is determined from ch[f]
+                 # c2 is determined from args[0] after width scaling
+                 # args[1:] contain optional k, s
+                 args = [c1, c2, *args[1:]]
+                 # LCBHAM itself usually isn't repeated via 'n', depth handled internally if needed
+            # General handling for other base modules
+            else:
+                args = [c1, c2, *args[1:]]
+                if m in repeat_modules:
+                    args.insert(2, n)  # number of repeats
+                    n = 1
+                if m is C3k2:  # for M/L/X sizes
+                    legacy = False
+                    if scale in "mlx":
+                        args[3] = True
+                if m is A2C2f:
+                    legacy = False
+                    if scale in "lx":  # for L/X sizes
+                        args.extend((True, 1.2))
+                # Special handling for C2fAttn (example)
+                if m is C2fAttn:
+                     args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8) # embed channels
+                     args[2] = int(max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2]) # num heads
+                    
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in frozenset({HGStem, HGBlock}):
