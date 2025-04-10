@@ -45,7 +45,7 @@ head:
   - [[-1, 13], 1, Concat, [1]] # 18 - cat head P4 (layer 13)
   - [-1, 2, C3k2, [512, False]] # 19 (P4/16-medium output)
 
-  - [-1, 1, LCBHAM, [512, 3, 2]] # 20 - LCBHAM downsampling from P4 head output (layer 19)
+  - [-1, 1, Conv, [512, 3, 2]] # 20 - LCBHAM downsampling from P4 head output (layer 19)
   - [[-1, 10], 1, Concat, [1]] # 21 - cat head P5 (layer 10)
   - [-1, 2, C3k2, [1024, True]] # 22 (P5/32-large output)
 
