@@ -1,94 +1,39 @@
-Baseline Pretrained COCO (YOLOv12.pt)
-P          R          mAP50      mAP50-95
-0.826      0.783      0.827      0.409
+YOLO11s - flow
+0.848       0.78      0.841      0.426 - flow
+0.416     0.0785      0.247      0.119 - wt
 
-Baseline (YOLOv12.yaml)
-P          R          mAP50      mAP50-95
-0.786       0.69      0.739      0.335
+YOLO11s - wt
+0.375      0.285      0.214     0.0633 - flow
+0.903      0.875      0.925      0.577 - wt
 
-Baseline (YOLOv11.yaml)
-0.786      0.682       0.74      0.335
+YOLO11s - wt-flow
+0.838      0.755      0.817      0.404 - flow
+0.907       0.87      0.925      0.576 - wt
 
-YOLO-CBAM-A
-P          R          mAP50      mAP50-95
-0.8      0.644      0.715      0.321
+YOLO11s - wt-flow-taco
+0.842      0.775      0.834      0.412 - flow
+0.909      0.866      0.924      0.575 - wt
 
-YOLO-CBAM-B
-P          R          mAP50      mAP50-95
-0.752      0.644      0.689        0.3
+YOLO11s - wt-flow-uav
+0.828      0.768       0.82      0.397 - flow
+0.909      0.873      0.925      0.577 - wt
 
-YOLO-CBAM-ALL
-P          R          mAP50      mAP50-95
-0.805      0.645      0.709      0.313
+YOLO11s - wt-flow-uav-taco
+0.834      0.777      0.827      0.415 - flow
+0.912      0.864      0.926      0.579 - wt
 
-YOLO-CBAM-SHORT
-P          R          mAP50      mAP50-95
-0.794       0.66      0.712      0.313
+m
+YOLOv11.yaml
+20,114,672 gradients, 68.5 GFLOPs
+m 1x dspan
+19,529,858 gradients, 66.6 GFLOPs
 
-YOLO-SHORT
-P          R          mAP50      mAP50-95
-0.807      0.685      0.742      0.329
+s
+9,458,736 gradients, 21.7 GFLOPs
+s 1x dspan
+8,930,562 gradients, 20.1 GFLOPs
 
-YOLO-HALF
-P           R          mAP50     mAP50-95
-0.808       0.67       0.73      0.321
-
-YOLO-NANO
-P         R          mAP50      mAP50-95
-0.76      0.626      0.678      0.283
-
-<<<<<<< HEAD
-
-300 Epochs
-YOLOv12-CBAM-A
-0.834      0.737      0.786      0.375
-
-YOLOv12
-0.824      0.734      0.794      0.379
-
-YOLOv12 Pretrained
-0.831      0.784      0.838       0.42
-
-YOLOv12m wt-flow-uav 300
-0.848      0.788      0.841      0.421
-
-YOLOv12 SimAM
-0.824      0.739      0.789      0.373
-=======
-200 epoch
-YOLOv12s - DSPAN
-0.809      0.727      0.783      0.366
-
-YOLOv12s - Pretrained
-0.822      0.803      0.839       0.42
-
-YOLOv12s - YAML
-0.834       0.73      0.795      0.382
-
-YOLOv12 - Augment
-0.813      0.713      0.804       0.41
-
-YOLOv11 - YAML - Augment
-0.786      0.714      0.792      0.399
-
-YOLOv11 - YAML - No Augment
-0.832      0.719      0.815      0.417
-
-YOLOv11s - PT 
-0.843       0.78      0.852       0.45
-
-YOLOv11s - LCHBAM 200
-0.83      0.717      0.812      0.421
-
-YOLOv11s LCBHAM 500
-0.825      0.733      0.816      0.417
-
-YOLOv11 LCBHAM wt-flow-uav
-0.79      0.737      0.812      0.417
-
-YOLOv11 DSPAN 2x
-0.816      0.754      0.817
-
-YOLOv11 DSPAN 1x
-0.821      0.748      0.821
->>>>>>> lcbham
+n
+2,624,064 gradients, 6.6 GFLOPs
+n 1x dspan
+2,491,570 gradients, 6.2 GFLOPs

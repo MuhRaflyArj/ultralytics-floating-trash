@@ -58,6 +58,7 @@ from .block import (
     ResNetLayer,
     SCDown,
     TorchVision,
+    C3k2SimAM
 )
 from .conv import (
     SimAM,

@@ -66,7 +66,8 @@ from ultralytics.nn.modules import (
     WorldDetect,
     v10Detect,
     CBAM,
-    LCBHAM
+    LCBHAM,
+    C3k2SimAM
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1118,6 +1119,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C2,
             C2f,
             C3k2,
+            C3k2SimAM,
             RepNCSPELAN4,
             ELAN1,
             ADown,
@@ -1192,10 +1194,14 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 if m in repeat_modules:
                     args.insert(2, n)  # number of repeats
                     n = 1
-                if m is C3k2:  # for M/L/X sizes
+                if m is C3k2 or m is C3k2SimAM:
                     legacy = False
-                    if scale in "mlx":
-                        args[3] = True
+                    base_arg_count = 2 + (1 if m in repeat_modules else 0)
+                    for idx in range(base_arg_count, len(args)):
+                        if isinstance(args[idx], bool):
+                             if scale in "mlx":
+                                 args[idx] = True
+                             break
                 if m is A2C2f:
                     legacy = False
                     if scale in "lx":  # for L/X sizes
@@ -1220,11 +1226,19 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset({Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}):
-            args.append([ch[x] for x in f])
+            input_channels = [ch[x] for x in f]
+            yaml_args = args
+            resolved_nc = nc if isinstance(yaml_args[0], str) and yaml_args[0] == 'nc' else yaml_args[0]
+            args = [resolved_nc, input_channels]
+
             if m is Segment:
-                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
+                 if len(yaml_args) > 2 and isinstance(yaml_args[2], int):
+                     mask_channels = make_divisible(min(yaml_args[2], max_channels) * width, 8)
+                     args.append(mask_channels)
+
             if m in {Detect, Segment, Pose, OBB}:
-                m.legacy = legacy
+                # m.legacy = legacy # Uncomment or add if needed by your Detect/Segment class version
+                pass
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
         elif m is CBLinear:

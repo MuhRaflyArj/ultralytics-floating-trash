@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
-from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad
+from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad, SimAM
 from .transformer import TransformerBlock
 
 __all__ = (
@@ -1078,6 +1078,67 @@ class C3k2(C2f):
         self.m = nn.ModuleList(
             C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
         )
+
+
+# In block.py
+
+class C3k2SimAM(C3k2):
+    """
+    Modification of C3k2 (based on C2f) that applies SimAM attention
+    after each internal Bottleneck/C3k block (Option 1).
+    """
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True, simam_lambda=1e-4):
+        """
+        Initialize C3k2SimAM module.
+
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k blocks instead of Bottleneck.
+            e (float): Expansion ratio.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections in internal blocks.
+            simam_lambda (float): Lambda parameter for the SimAM module.
+        """
+        # Run parent initializers first (sets self.c, self.cv1, self.m, and the *original* self.cv2)
+        super().__init__(c1, c2, n, c3k, e, g, shortcut)
+
+        # Instantiate SimAM
+        self.simam = SimAM(self.c, self.c, e_lambda=simam_lambda)
+
+        # --- ADD THIS LINE ---
+        # Re-initialize self.cv2 to expect the correct number of input channels
+        # based on the modified forward pass concatenation: (1 + n) * self.c
+        self.cv2 = Conv((1 + n) * self.c, c2, 1)
+        # --- END ADDED LINE ---
+
+    def forward(self, x):
+        """
+        Forward pass through C3k2SimAM layer, applying SimAM after each block in self.m.
+        This overrides the forward method inherited from C2f/C3k2.
+        """
+        # Initial conv and split
+        y = list(self.cv1(x).split((self.c, self.c), 1))
+
+        # Store the initial shortcut path
+        shortcut_path = y[0]
+
+        # Process the second path through blocks and SimAM
+        current_feature = y[1]
+        processed_features = []
+        for block in self.m:
+            block_output = block(current_feature)
+            simam_output = self.simam(block_output)
+            processed_features.append(simam_output)
+            current_feature = simam_output # Update feature for next block
+
+        # Combine shortcut path and processed features
+        y_combined = [shortcut_path] + processed_features
+
+        # Final convolution (now correctly initialized)
+        return self.cv2(torch.cat(y_combined, 1))
+
 
 
 class C3k(C3):
